@@ -19,6 +19,11 @@ import (
 
 //TODO put all this in a struct
 
+const (
+	screenWidth  = 400
+	screenHeight = 400
+)
+
 var (
 	mergeButton = new(widget.Clickable)
 	splitButton = new(widget.Clickable)
@@ -41,7 +46,7 @@ func GUIRun() {
 	go func() {
 		w := new(app.Window)
 		exp = explorer.NewExplorer(w)
-		w.Option(app.Size(unit.Dp(800), unit.Dp(700)))
+		w.Option(app.Size(unit.Dp(screenWidth), unit.Dp(screenHeight)))
 		setDefaults()
 		if err := GUILoop(w); err != nil {
 			fmt.Println(err)
@@ -77,6 +82,7 @@ func GUILoop(w *app.Window) error {
 				gtx = gtx.Disabled()
 			}
 
+			//TODO if text is "", print out "Must provide a chunk size"
 			hasTextUpdate := false
 			for {
 				_, ok := chunkSizeEditor.Update(gtx)
@@ -172,44 +178,51 @@ func GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			-decrease the viewport size
 	*/
 
-	widgets := []layout.Widget{
+	widgets := []layout.Widget{ //TODO replace the label with a dialog box
+
 		func(gtx C) D {
-			return material.H3(th, messageLabel).Layout(gtx)
-		}, //TODO replace the label with a dialog box
-		func(gtx C) D {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			return layout.Flex{Alignment: layout.Middle, Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx C) D {
-					e := material.Editor(th, chunkSizeEditor, "Chunk size")
-					e.Font.Style = font.Regular
-					border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Dp(2)}
-					return border.Layout(gtx, func(gtx C) D {
-						return layout.UniformInset(unit.Dp(8)).Layout(gtx, e.Layout)
-					})
+					return material.Label(th, unit.Sp(12), messageLabel).Layout(gtx)
 				}),
 				layout.Rigid(func(gtx C) D {
-					return layout.Flex{}.Layout(gtx,
-						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "K", "KB").Layout),
-						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "M", "MB").Layout),
-						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "G", "GB").Layout),
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx C) D {
+							e := material.Editor(th, chunkSizeEditor, "Chunk size")
+							e.Font.Style = font.Regular
+							border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Dp(2)}
+							return border.Layout(gtx, func(gtx C) D {
+								return layout.UniformInset(unit.Dp(8)).Layout(gtx, e.Layout)
+							})
+						}),
+						layout.Rigid(func(gtx C) D {
+							return layout.Flex{}.Layout(gtx,
+								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "K", "KB").Layout),
+								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "M", "MB").Layout),
+								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "G", "GB").Layout),
+							)
+						}),
 					)
 				}),
-			)
-		},
-		func(gtx C) D {
-			return layout.Flex{Alignment: layout.Middle, Spacing: layout.SpaceBetween}.Layout(gtx, //also try space evenly once we get this grouped with the above
 				layout.Rigid(func(gtx C) D {
-					btn := material.Button(th, splitButton, "Split")
-					return btn.Layout(gtx)
-				}),
-				layout.Rigid(func(gtx C) D {
-					btn := material.Button(th, mergeButton, "Merge")
-					return btn.Layout(gtx)
+					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, //also try space evenly once we get this grouped with the above
+						layout.Rigid(func(gtx C) D {
+							btn := material.Button(th, splitButton, "Split")
+							return btn.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx C) D {
+							return layout.Spacer{Width: unit.Dp(16)}.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx C) D {
+							btn := material.Button(th, mergeButton, "Merge")
+							return btn.Layout(gtx)
+						}),
+					)
 				}),
 			)
 		},
 	}
 
-	//TODO make widgets stack in the center
 	return layout.Stack{Alignment: layout.Center}.Layout(gtx,
 		layout.Expanded(
 			func(gtx C) D {

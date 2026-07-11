@@ -87,7 +87,7 @@ func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) 
 	}
 	defer cmpFile.Close()
 
-	readSize := chunkSizeBytes - len(header)
+	readSize := chunkSizeBytes - len(header) //TODO duplicate code
 	for {
 
 		binary.BigEndian.PutUint16(header[2:], idx)
@@ -347,7 +347,6 @@ func sortFilesAndStripHeader(files []io.ReadCloser) ([]io.ReadCloser, error) {
 }
 
 //TODO maybe make a contribution to gioui.org/x/explorer that adds support for the windows folder picker UI
-//TODO put on vcs
 
 func main() {
 
