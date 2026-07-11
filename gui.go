@@ -175,9 +175,28 @@ func GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	widgets := []layout.Widget{
 		func(gtx C) D {
 			return material.H3(th, messageLabel).Layout(gtx)
-		},
+		}, //TODO replace the label with a dialog box
 		func(gtx C) D {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					e := material.Editor(th, chunkSizeEditor, "Chunk size")
+					e.Font.Style = font.Regular
+					border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Dp(2)}
+					return border.Layout(gtx, func(gtx C) D {
+						return layout.UniformInset(unit.Dp(8)).Layout(gtx, e.Layout)
+					})
+				}),
+				layout.Rigid(func(gtx C) D {
+					return layout.Flex{}.Layout(gtx,
+						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "K", "KB").Layout),
+						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "M", "MB").Layout),
+						layout.Rigid(material.RadioButton(th, chunkSizeRadio, "G", "GB").Layout),
+					)
+				}),
+			)
+		},
+		func(gtx C) D {
+			return layout.Flex{Alignment: layout.Middle, Spacing: layout.SpaceBetween}.Layout(gtx, //also try space evenly once we get this grouped with the above
 				layout.Rigid(func(gtx C) D {
 					btn := material.Button(th, splitButton, "Split")
 					return btn.Layout(gtx)
@@ -188,25 +207,7 @@ func GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
 				}),
 			)
 		},
-		func(gtx C) D {
-			e := material.Editor(th, chunkSizeEditor, "Chunk size")
-			e.Font.Style = font.Regular
-			border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Dp(2)}
-			return border.Layout(gtx, func(gtx C) D {
-				return layout.UniformInset(unit.Dp(8)).Layout(gtx, e.Layout)
-			})
-		},
-		func(gtx C) D {
-			return layout.Flex{}.Layout(gtx,
-				layout.Rigid(material.RadioButton(th, chunkSizeRadio, "K", "KB").Layout),
-				layout.Rigid(material.RadioButton(th, chunkSizeRadio, "M", "MB").Layout),
-				layout.Rigid(material.RadioButton(th, chunkSizeRadio, "G", "GB").Layout),
-			)
-		},
 	}
-	//return material.List(th, list).Layout(gtx, len(widgets), func(gtx C, i int) D {
-	//	return layout.UniformInset(unit.Dp(16)).Layout(gtx, widgets[i])
-	//})
 
 	//TODO make widgets stack in the center
 	return layout.Stack{Alignment: layout.Center}.Layout(gtx,
