@@ -44,7 +44,6 @@ func createCompressedFile(filePath, outFilePath string) (string, error) {
 	gz := gzip.NewWriter(comp)
 	defer gz.Close()
 
-	//TODO may want to change the buffer size here for efficiency
 	_, err = io.Copy(gz, f)
 	if err != nil {
 		return "", err

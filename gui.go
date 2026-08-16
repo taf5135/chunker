@@ -73,8 +73,6 @@ func (c *ChunkerGUI) GUILoop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 
-	//TODO add a progress bar that tracks how far through the program we are
-
 	validChunkSize := false
 
 	var ops op.Ops
@@ -103,7 +101,7 @@ func (c *ChunkerGUI) GUILoop(w *app.Window) error {
 				parsed, err := parseChunkSize(fmt.Sprintf("%s%s", chunkSizeText, c.chunkSizeRadio.Value))
 				if err != nil {
 					if chunkSizeText == "" {
-						c.activeMessageLabel = "Must input a chunk size" //TODO make these strings const
+						c.activeMessageLabel = "Must input a chunk size"
 					} else {
 						c.activeMessageLabel = err.Error()
 						fmt.Println(err)
@@ -237,5 +235,4 @@ func (c *ChunkerGUI) GUIRoot(gtx layout.Context, th *material.Theme) layout.Dime
 				})
 			}),
 	)
-
 }
