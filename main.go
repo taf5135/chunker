@@ -111,7 +111,9 @@ func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) 
 
 	}
 
-	return nil
+	cmpFile.Close()
+
+	return os.Remove(cmpFileName)
 }
 
 func filter(entries []os.DirEntry, fnameRegexp *regexp.Regexp) []os.DirEntry {
@@ -124,7 +126,6 @@ func filter(entries []os.DirEntry, fnameRegexp *regexp.Regexp) []os.DirEntry {
 			}
 			preserved = append(preserved, e)
 		}
-
 	}
 	return preserved
 }
@@ -227,7 +228,7 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 		return err
 	}
 
-	gz.Close() //TODO run tests. may be unnecessary
+	gz.Close()
 
 	_, err = comp.Seek(0, io.SeekStart)
 	if err != nil {
@@ -260,11 +261,13 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 		idx++
 	}
 
-	//TODO delete the intermediate compressed file
-
-	return nil
+	return os.Remove(compressedFilePath)
 }
 
+/*
+assembleFile combines multiple cpart files back into the original file. The name is determined from the first file in
+the slice.
+*/
 func assembleFile(files []io.ReadCloser) error {
 
 	if len(files) == 0 {
@@ -290,10 +293,13 @@ func assembleFile(files []io.ReadCloser) error {
 		}
 	}
 
-	//TODO delete the intermediate compressed file
+	if err = decompressFile(compressedFile); err != nil {
+		return err
+	}
 
-	err = decompressFile(compressedFile)
-	return err
+	compressedFile.Close()
+
+	return os.Remove(compressedFile.Name())
 }
 
 /*
@@ -344,8 +350,6 @@ func sortFilesAndStripHeader(files []io.ReadCloser) ([]io.ReadCloser, error) {
 
 	return sorted, nil
 }
-
-//TODO maybe make a contribution to gioui.org/x/explorer that adds support for the windows folder picker UI
 
 func main() {
 
