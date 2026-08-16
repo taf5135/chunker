@@ -17,38 +17,30 @@ import (
 	"gioui.org/x/explorer"
 )
 
-//TODO put all this in a struct
-
 const (
 	screenWidth  = 400
-	screenHeight = 400
+	screenHeight = 150
 )
 
-var (
-	mergeButton = new(widget.Clickable)
-	splitButton = new(widget.Clickable)
-
-	chunkSizeRadio = new(widget.Enum)
-
-	chunkSizeKB = 0
-
-	messageLabel    = ""
-	chunkSizeEditor = &widget.Editor{
-		SingleLine: true,
-		Submit:     true,
-	}
+type ChunkerGUI struct {
+	mergeButton        *widget.Clickable
+	splitButton        *widget.Clickable
+	chunkSizeRadio     *widget.Enum
+	chunkSizeKB        int
+	activeMessageLabel string
+	chunkSizeEditor    *widget.Editor
 
 	exp *explorer.Explorer
-)
+}
 
 func GUIRun() {
 
 	go func() {
 		w := new(app.Window)
-		exp = explorer.NewExplorer(w)
 		w.Option(app.Size(unit.Dp(screenWidth), unit.Dp(screenHeight)))
-		setDefaults()
-		if err := GUILoop(w); err != nil {
+		chnk := &ChunkerGUI{}
+		chnk.setDefaults(w)
+		if err := chnk.GUILoop(w); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -57,12 +49,27 @@ func GUIRun() {
 	app.Main()
 }
 
-func setDefaults() {
-	chunkSizeRadio.Value = "M"
-	chunkSizeEditor.SetText("10")
+func (c *ChunkerGUI) setDefaults(w *app.Window) {
+	c.mergeButton = new(widget.Clickable)
+	c.splitButton = new(widget.Clickable)
+	c.chunkSizeRadio = new(widget.Enum)
+	c.chunkSizeEditor = new(widget.Editor)
+
+	c.chunkSizeKB = 0
+
+	c.activeMessageLabel = ""
+
+	c.chunkSizeRadio.Value = "M"
+	c.chunkSizeEditor.SetText("10")
+	c.chunkSizeEditor = &widget.Editor{
+		SingleLine: true,
+		Submit:     true,
+	}
+
+	c.exp = explorer.NewExplorer(w)
 }
 
-func GUILoop(w *app.Window) error {
+func (c *ChunkerGUI) GUILoop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 
@@ -82,43 +89,47 @@ func GUILoop(w *app.Window) error {
 				gtx = gtx.Disabled()
 			}
 
-			//TODO if text is "", print out "Must provide a chunk size"
 			hasTextUpdate := false
 			for {
-				_, ok := chunkSizeEditor.Update(gtx)
+				_, ok := c.chunkSizeEditor.Update(gtx)
 				if !ok {
 					break
 				}
 				hasTextUpdate = true
 			}
 
+			chunkSizeText := c.chunkSizeEditor.Text()
 			if radioButtonsGroup.Update(gtx) || hasTextUpdate {
-				parsed, err := parseChunkSize(fmt.Sprintf("%s%s", chunkSizeEditor.Text(), chunkSizeRadio.Value))
+				parsed, err := parseChunkSize(fmt.Sprintf("%s%s", chunkSizeText, c.chunkSizeRadio.Value))
 				if err != nil {
-					messageLabel = err.Error()
-					fmt.Println(err)
+					if chunkSizeText == "" {
+						c.activeMessageLabel = "Must input a chunk size" //TODO make these strings const
+					} else {
+						c.activeMessageLabel = err.Error()
+						fmt.Println(err)
+					}
 					validChunkSize = false
 				} else {
-					chunkSizeKB = parsed
+					c.chunkSizeKB = parsed
 					validChunkSize = true
 				}
 			}
 
-			processMergeButton(gtx)
-			processSplitButton(gtx, validChunkSize)
+			c.processMergeButton(gtx)
+			c.processSplitButton(gtx, validChunkSize)
 
-			GUIRoot(gtx, th)
+			c.GUIRoot(gtx, th)
 			e.Frame(gtx.Ops)
 		}
 	}
 }
 
-func processSplitButton(gtx layout.Context, validChunkSize bool) {
-	if splitButton.Clicked(gtx) {
+func (c *ChunkerGUI) processSplitButton(gtx layout.Context, validChunkSize bool) {
+	if c.splitButton.Clicked(gtx) {
 
 		if validChunkSize {
 			go func() {
-				file, err := exp.ChooseFile()
+				file, err := c.exp.ChooseFile()
 				if err != nil {
 					fmt.Printf("ChooseFile err: %s", err.Error())
 					return
@@ -127,25 +138,25 @@ func processSplitButton(gtx layout.Context, validChunkSize bool) {
 				defer file.Close()
 
 				if validChunkSize {
-					err = splitFile(file, chunkSizeKB)
+					err = splitFile(file, c.chunkSizeKB)
 					if err != nil {
 						fmt.Println(err)
-						messageLabel = err.Error()
+						c.activeMessageLabel = err.Error()
 						return
 					}
 
-					messageLabel = "Split success"
+					c.activeMessageLabel = "Split success"
 				}
 			}()
 		}
 	}
 }
 
-func processMergeButton(gtx layout.Context) {
-	if mergeButton.Clicked(gtx) {
+func (c *ChunkerGUI) processMergeButton(gtx layout.Context) {
+	if c.mergeButton.Clicked(gtx) {
 
 		go func() {
-			files, err := exp.ChooseFiles("")
+			files, err := c.exp.ChooseFiles("")
 			if err != nil {
 				fmt.Printf("ChooseFiles err: %s", err.Error())
 				return
@@ -160,35 +171,28 @@ func processMergeButton(gtx layout.Context) {
 			err = assembleFile(files)
 			if err != nil {
 				fmt.Println(err)
-				messageLabel = err.Error()
+				c.activeMessageLabel = err.Error()
 				return
 			}
 
-			messageLabel = "Merge success"
+			c.activeMessageLabel = "Merge success"
 
 		}()
 	}
 }
 
-func GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
+func (c *ChunkerGUI) GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
 
-	/*
-		Layout TODO:
-			-change the layout in concordence with reef's ideas
-			-decrease the viewport size
-	*/
-
-	widgets := []layout.Widget{ //TODO replace the label with a dialog box
-
+	widgets := []layout.Widget{
 		func(gtx C) D {
 			return layout.Flex{Alignment: layout.Middle, Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx C) D {
-					return material.Label(th, unit.Sp(12), messageLabel).Layout(gtx)
+					return material.Label(th, unit.Sp(12), c.activeMessageLabel).Layout(gtx)
 				}),
 				layout.Rigid(func(gtx C) D {
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx C) D {
-							e := material.Editor(th, chunkSizeEditor, "Chunk size")
+							e := material.Editor(th, c.chunkSizeEditor, "Chunk size")
 							e.Font.Style = font.Regular
 							border := widget.Border{Color: color.NRGBA{A: 0xff}, CornerRadius: unit.Dp(8), Width: unit.Dp(2)}
 							return border.Layout(gtx, func(gtx C) D {
@@ -197,27 +201,29 @@ func GUIRoot(gtx layout.Context, th *material.Theme) layout.Dimensions {
 						}),
 						layout.Rigid(func(gtx C) D {
 							return layout.Flex{}.Layout(gtx,
-								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "K", "KB").Layout),
-								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "M", "MB").Layout),
-								layout.Rigid(material.RadioButton(th, chunkSizeRadio, "G", "GB").Layout),
+								layout.Rigid(material.RadioButton(th, c.chunkSizeRadio, "K", "KB").Layout),
+								layout.Rigid(material.RadioButton(th, c.chunkSizeRadio, "M", "MB").Layout),
+								layout.Rigid(material.RadioButton(th, c.chunkSizeRadio, "G", "GB").Layout),
 							)
 						}),
 					)
 				}),
 				layout.Rigid(func(gtx C) D {
-					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, //also try space evenly once we get this grouped with the above
-						layout.Rigid(func(gtx C) D {
-							btn := material.Button(th, splitButton, "Split")
-							return btn.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx C) D {
-							return layout.Spacer{Width: unit.Dp(16)}.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx C) D {
-							btn := material.Button(th, mergeButton, "Merge")
-							return btn.Layout(gtx)
-						}),
-					)
+					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx C) D {
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx, //also try space evenly once we get this grouped with the above
+							layout.Rigid(func(gtx C) D {
+								btn := material.Button(th, c.splitButton, "Split")
+								return btn.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx C) D {
+								return layout.Spacer{Width: unit.Dp(16)}.Layout(gtx)
+							}),
+							layout.Rigid(func(gtx C) D {
+								btn := material.Button(th, c.mergeButton, "Merge")
+								return btn.Layout(gtx)
+							}),
+						)
+					})
 				}),
 			)
 		},
