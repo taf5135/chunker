@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -34,7 +33,7 @@ func createCompressedFile(filePath, outFilePath string) (string, error) {
 	}
 	defer f.Close()
 
-	compressedFilePath := path.Join(outFilePath, path.Base(fmt.Sprintf("%s%s", filePath, ".gz")))
+	compressedFilePath := filepath.Join(outFilePath, filepath.Base(fmt.Sprintf("%s%s", filePath, ".gz")))
 	comp, err := os.Create(compressedFilePath)
 	if err != nil {
 		return "", err
@@ -112,7 +111,6 @@ func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) 
 	}
 
 	cmpFile.Close()
-
 	return os.Remove(cmpFileName)
 }
 
@@ -208,7 +206,7 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 		return err
 	}
 
-	compressedFilePath := path.Join(fpath, fmt.Sprintf("%s%s", fname, ".gz"))
+	compressedFilePath := filepath.Join(fpath, fmt.Sprintf("%s%s", fname, ".gz"))
 	comp, err := os.Create(compressedFilePath)
 	if err != nil {
 		return err
@@ -261,6 +259,7 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 		idx++
 	}
 
+	comp.Close()
 	return os.Remove(compressedFilePath)
 }
 
