@@ -54,80 +54,6 @@ func createCompressedFile(filePath, outFilePath string) (string, error) {
 	return compressedFilePath, nil
 }
 
-func writeFile(filePath string, dat []byte, idx uint16) error {
-
-	partFileName := fmt.Sprintf("%s_cpart%d", filePath, idx)
-
-	f, err := os.Create(partFileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.Write(dat)
-	return err
-}
-
-func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) error {
-	var idx uint16
-
-	cmpFileName, err := createCompressedFile(inFilePath, outFilePath)
-	if err != nil {
-		return err
-	}
-
-	header := make([]byte, 4)
-	binary.BigEndian.PutUint16(header[:2], magic)
-
-	cmpFile, err := os.Open(cmpFileName)
-	if err != nil {
-		return err
-	}
-	defer cmpFile.Close()
-
-	readSize := chunkSizeBytes - len(header) //TODO duplicate code
-	for {
-
-		binary.BigEndian.PutUint16(header[2:], idx)
-		dat := make([]byte, readSize)
-		copy(dat, header)
-		readLen, err := cmpFile.Read(dat[len(header):])
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		dat = dat[:readLen+len(header)]
-
-		err = writeFile(cmpFileName, dat, idx)
-		if err != nil {
-			return err
-		}
-
-		idx++
-
-	}
-
-	cmpFile.Close()
-	return os.Remove(cmpFileName)
-}
-
-func filter(entries []os.DirEntry, fnameRegexp *regexp.Regexp) []os.DirEntry {
-	preserved := make([]os.DirEntry, 0, len(entries))
-	for _, e := range entries {
-
-		if cpartRegexp.MatchString(e.Name()) {
-			if fnameRegexp != nil && !fnameRegexp.MatchString(e.Name()) {
-				continue
-			}
-			preserved = append(preserved, e)
-		}
-	}
-	return preserved
-}
-
 func decompressFile(comp *os.File) error {
 	_, err := comp.Seek(0, io.SeekStart)
 	if err != nil {
@@ -155,49 +81,70 @@ func decompressFile(comp *os.File) error {
 	return err
 }
 
-func assembleFileByPath(dirPath string, fnameRegex *regexp.Regexp) error {
-	entries, err := os.ReadDir(dirPath)
+func writeCpartFile(filePath string, dat []byte, idx uint16) error {
+
+	partFileName := fmt.Sprintf("%s_cpart%d", filePath, idx)
+
+	f, err := os.Create(partFileName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.Write(dat)
+	return err
+}
+
+func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) error {
+	var idx uint16
+
+	cmpFileName, err := createCompressedFile(inFilePath, outFilePath)
 	if err != nil {
 		return err
 	}
 
-	entries = filter(entries, fnameRegex)
+	//TODO: the added functionality of specifying an outfilepath (not possible in gui) is what's ultimately
+	// responsible for our code duplication
+	// We should do what assembleFile and assembleFileByPath do: just make the latter call the former. This entails
+	// adding a feature to splitFile.
+	// How should we do this?
 
-	if len(entries) == 0 {
-		return fmt.Errorf("no cpart files found in directory %s", dirPath)
+	header := make([]byte, 4)
+	binary.BigEndian.PutUint16(header[:2], magic)
+
+	cmpFile, err := os.Open(cmpFileName)
+	if err != nil {
+		return err
 	}
+	defer cmpFile.Close()
 
-	files := make([]io.ReadCloser, 0, len(entries))
-	for _, entry := range entries {
-		f, err := os.Open(filepath.Join(dirPath, entry.Name()))
+	readSize := chunkSizeBytes - len(header) //TODO duplicate code
+	for {
+
+		binary.BigEndian.PutUint16(header[2:], idx)
+		dat := make([]byte, readSize)
+		copy(dat, header)
+		readLen, err := cmpFile.Read(dat[len(header):])
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		dat = dat[:readLen+len(header)]
+
+		err = writeCpartFile(cmpFileName, dat, idx)
 		if err != nil {
 			return err
 		}
-		files = append(files, f)
-		defer f.Close()
+
+		idx++
+
 	}
 
-	return assembleFile(files)
-}
-
-func parseChunkSize(cstr string) (int, error) {
-	cstr = strings.TrimSpace(strings.ToUpper(cstr))
-	last := cstr[len(cstr)-1]
-
-	flt, err := strconv.ParseFloat(cstr[:len(cstr)-1], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	switch last {
-	case 'K':
-		flt = flt * 1024
-	case 'M':
-		flt = flt * 1048576
-	case 'G':
-		flt = flt * 1073741824
-	}
-	return int(flt), nil
+	cmpFile.Close()
+	return os.Remove(cmpFileName)
 }
 
 func splitFile(file io.ReadCloser, chunkSize int) error {
@@ -251,7 +198,7 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 
 		dat = dat[:readLen+len(header)]
 
-		err = writeFile(compressedFilePath, dat, idx)
+		err = writeCpartFile(compressedFilePath, dat, idx)
 		if err != nil {
 			return err
 		}
@@ -261,6 +208,31 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 
 	comp.Close()
 	return os.Remove(compressedFilePath)
+}
+
+func assembleFileByPath(dirPath string, fnameRegex *regexp.Regexp) error {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return err
+	}
+
+	entries = filter(entries, fnameRegex)
+
+	if len(entries) == 0 {
+		return fmt.Errorf("no cpart files found in directory %s", dirPath)
+	}
+
+	files := make([]io.ReadCloser, 0, len(entries))
+	for _, entry := range entries {
+		f, err := os.Open(filepath.Join(dirPath, entry.Name()))
+		if err != nil {
+			return err
+		}
+		files = append(files, f)
+		defer f.Close()
+	}
+
+	return assembleFile(files)
 }
 
 /*
@@ -348,6 +320,40 @@ func sortFilesAndStripHeader(files []io.ReadCloser) ([]io.ReadCloser, error) {
 	}
 
 	return sorted, nil
+}
+
+func filter(entries []os.DirEntry, fnameRegexp *regexp.Regexp) []os.DirEntry {
+	preserved := make([]os.DirEntry, 0, len(entries))
+	for _, e := range entries {
+
+		if cpartRegexp.MatchString(e.Name()) {
+			if fnameRegexp != nil && !fnameRegexp.MatchString(e.Name()) {
+				continue
+			}
+			preserved = append(preserved, e)
+		}
+	}
+	return preserved
+}
+
+func parseChunkSize(cstr string) (int, error) {
+	cstr = strings.TrimSpace(strings.ToUpper(cstr))
+	last := cstr[len(cstr)-1]
+
+	flt, err := strconv.ParseFloat(cstr[:len(cstr)-1], 64)
+	if err != nil {
+		return 0, err
+	}
+
+	switch last {
+	case 'K':
+		flt = flt * 1024
+	case 'M':
+		flt = flt * 1048576
+	case 'G':
+		flt = flt * 1073741824
+	}
+	return int(flt), nil
 }
 
 func main() {
