@@ -22,7 +22,7 @@ x-4 bytes of data, where x is the length of the file
 */
 
 const magic = 0xFE26
-const headerLength = 4 //TODO perhaps header should be a struct so we can easily marshal & unmarshal binary
+const headerLength = 4
 
 var cpartRegexp = regexp.MustCompile("(.*)_cpart(\\d+)$")
 
@@ -213,10 +213,6 @@ func assembleFileByPath(dirPath string, fnameRegex *regexp.Regexp) error {
 	return assembleFile(files)
 }
 
-/*
-assembleFile combines multiple cpart files back into the original file. The name is determined from the first file in
-the slice.
-*/
 func assembleFile(files []io.ReadCloser) error {
 
 	if len(files) == 0 {
