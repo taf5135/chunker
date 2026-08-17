@@ -26,7 +26,7 @@ const headerLength = 4 //TODO perhaps header should be a struct so we can easily
 
 var cpartRegexp = regexp.MustCompile("(.*)_cpart(\\d+)$")
 
-func createCompressedFile(filePath, outFilePath string) (string, error) {
+func compressFileByPath(filePath, outFilePath string) (string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -96,21 +96,11 @@ func writeCpartFile(filePath string, dat []byte, idx uint16) error {
 }
 
 func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) error {
-	var idx uint16
 
-	cmpFileName, err := createCompressedFile(inFilePath, outFilePath)
+	cmpFileName, err := compressFileByPath(inFilePath, outFilePath)
 	if err != nil {
 		return err
 	}
-
-	//TODO: the added functionality of specifying an outfilepath (not possible in gui) is what's ultimately
-	// responsible for our code duplication
-	// We should do what assembleFile and assembleFileByPath do: just make the latter call the former. This entails
-	// adding a feature to splitFile.
-	// How should we do this?
-
-	header := make([]byte, 4)
-	binary.BigEndian.PutUint16(header[:2], magic)
 
 	cmpFile, err := os.Open(cmpFileName)
 	if err != nil {
@@ -118,29 +108,8 @@ func splitFileByPath(inFilePath string, outFilePath string, chunkSizeBytes int) 
 	}
 	defer cmpFile.Close()
 
-	readSize := chunkSizeBytes - len(header) //TODO duplicate code
-	for {
-
-		binary.BigEndian.PutUint16(header[2:], idx)
-		dat := make([]byte, readSize)
-		copy(dat, header)
-		readLen, err := cmpFile.Read(dat[len(header):])
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		dat = dat[:readLen+len(header)]
-
-		err = writeCpartFile(cmpFileName, dat, idx)
-		if err != nil {
-			return err
-		}
-
-		idx++
-
+	if err = splitCompressedFile(cmpFile, chunkSizeBytes); err != nil {
+		return err
 	}
 
 	cmpFile.Close()
@@ -180,15 +149,25 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 		return err
 	}
 
+	if err = splitCompressedFile(comp, chunkSize); err != nil {
+		return err
+	}
+
+	comp.Close()
+	return os.Remove(compressedFilePath)
+}
+
+func splitCompressedFile(compressedFile *os.File, chunkSize int) error {
 	var idx uint16
 	header := make([]byte, 4)
 	binary.BigEndian.PutUint16(header[:2], magic)
 	readSize := chunkSize - len(header)
 	for {
+
 		binary.BigEndian.PutUint16(header[2:], idx)
 		dat := make([]byte, readSize)
 		copy(dat, header)
-		readLen, err := comp.Read(dat[len(header):])
+		readLen, err := compressedFile.Read(dat[len(header):])
 
 		if err == io.EOF {
 			break
@@ -198,16 +177,15 @@ func splitFile(file io.ReadCloser, chunkSize int) error {
 
 		dat = dat[:readLen+len(header)]
 
-		err = writeCpartFile(compressedFilePath, dat, idx)
+		err = writeCpartFile(compressedFile.Name(), dat, idx)
 		if err != nil {
 			return err
 		}
 
 		idx++
-	}
 
-	comp.Close()
-	return os.Remove(compressedFilePath)
+	}
+	return nil
 }
 
 func assembleFileByPath(dirPath string, fnameRegex *regexp.Regexp) error {
